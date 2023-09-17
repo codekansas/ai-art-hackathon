@@ -10,14 +10,15 @@ implement the following methods:
 """
 
 from dataclasses import dataclass
-
+from ai_art_hackathon.tasks.datasets.latent_dataset import LatentMappingDataset
 import ml.api as ml
+import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data.dataset import Dataset
 
 
 @dataclass
-class TemplateTaskConfig(ml.SupervisedLearningTaskConfig):
+class LatentMappingTaskConfig(ml.SupervisedLearningTaskConfig):
     pass
 
 
@@ -29,13 +30,19 @@ Output = Tensor
 Loss = Tensor
 
 
-@ml.register_task("template", TemplateTaskConfig)
-class TemplateTask(ml.SupervisedLearningTask[TemplateTaskConfig, Model, Batch, Output, Loss]):
+@ml.register_task("latent_mapping", LatentMappingTaskConfig)
+class LatentMappingTask(ml.SupervisedLearningTask[LatentMappingTaskConfig, Model, Batch, Output, Loss]):
     def run_model(self, model: Model, batch: Batch, state: ml.State) -> Output:
-        raise NotImplementedError
+        audio_emb, _, _, _, _ = batch
+        return model(audio_emb)
 
     def compute_loss(self, model: Model, batch: Batch, state: ml.State, output: Output) -> Loss:
-        raise NotImplementedError
+        (_, age, _, country, sex), (p_age, p_country, p_sex) = batch, output
+        return {
+            "age": F.cross_entropy(p_age, age.squeeze(1).long()),
+            "country": F.cross_entropy(p_country, country.squeeze(1).long()),
+            "sex": F.cross_entropy(p_sex, sex.squeeze(1).long()),
+        }
 
     def get_dataset(self, phase: ml.Phase) -> Dataset:
-        raise NotImplementedError
+        return LatentMappingDataset()
